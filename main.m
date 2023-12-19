@@ -29,23 +29,23 @@ Nc = length(cls_trn);
 % Number of training images in each class
 size_cls_trn = [bd(2:Nc)-bd(1:Nc-1);N-bd(Nc)+1]; 
 
-%Display the database
-F = zeros(192*Nc,168*max(size_cls_trn));
-for i=1:Nc
-    for j=1:size_cls_trn(i)
-          pos = sum(size_cls_trn(1:i-1))+j;
-          F(192*(i-1)+1:192*i,168*(j-1)+1:168*j) = reshape(data_trn(:,pos),[192,168]);
-    end
-end
-figure;
-imagesc(F);
-colormap(gray);
-axis off;
+% %Display the database
+% F = zeros(192*Nc,168*max(size_cls_trn));
+% for i=1:Nc
+%     for j=1:size_cls_trn(i)
+%           pos = sum(size_cls_trn(1:i-1))+j;
+%           F(192*(i-1)+1:192*i,168*(j-1)+1:168*j) = reshape(data_trn(:,pos),[192,168]);
+%     end
+% end
+% figure;
+% imagesc(F);
+% colormap(gray);
+% axis off;
 
 %% Parameters
 
 [h,w,c]=size(imread("database\test1\yaleB01_P00A+005E+10.pgm"));
-l=59;
+alpha=0.9;
 
 %% Dataprocessing
 
@@ -54,45 +54,69 @@ data_centered=data_trn-x_bar;
 X=data_centered/sqrt(N);
 Gram=X'*X;
 [V,D]=eig(Gram);
-nonzero_eigenvalues = diag(D) > eps;
-V_nonzero = V(:, nonzero_eigenvalues);
-U = X*V_nonzero*diag(1./sqrt(diag(V_nonzero' * X' * X * V_nonzero)))*V_nonzero';
+[eiglist,indexes]=sort(diag(D),"descend");
+eiglist = eiglist(1:N-1);
+indexes=indexes(1:N-1)-1;
+V = V(:, indexes);
+U = X*V*((V'*Gram*V)^(-1/2));
 
-figure
-for i = 1:Nc
-    for j = 1:N/Nc
-        k = (i-1)*(N/Nc) + j;
-        subplot(Nc, N/Nc, k);
-        imagesc(reshape(U(:,k), [h, w]));
-        colormap('gray')
-    end
-end
 
-E=zeros(1,N);
-for i=1:N
-    E(i)=(1/N)*sum(abs((U(:,i)')*(data_trn-x_bar)).^2);
-end
-
-[E,indexes]=sort(E,"descend");
-
+%%% Calcul de l
 kappaList=zeros(1,N-5);
 for j=1:N-1
-    kappaList(j)=calculate_kappa(U,X,j);
+    kappaList(j)=sum(eiglist(1:j))/sum(eiglist);
 end
 
+l = sum(kappaList<alpha);
+% l=5;
 
+%%%
+
+%%% affichage des eigenfaces
+% figure
+% for i = 1:Nc
+%     if (i==Nc)
+%         for j = 1:N/Nc-1
+%             k = (i-1)*(N/Nc) + j;
+%             subplot(Nc, N/Nc, k);
+%             imagesc(reshape(U(:,k), [h, w]));
+%             colormap('gray')
+%         end
+%     else
+%         for j = 1:N/Nc
+%             k = (i-1)*(N/Nc) + j;
+%             subplot(Nc, N/Nc, k);
+%             imagesc(reshape(U(:,k), [h, w]));
+%             colormap('gray')
+%         end
+%     end
+% end
+% %%% 
+% 
+% %%% Affichage visage reconstruit
+% 
 % x1_centered=data_trn(:,1)-x_bar;
-% x1estim=sum(x1_centered*U(indexes(1:l)),2)+x_bar;
-% figure,imagesc(abs(reshape(x1estim,[192,168]))),colormap('gray')
-% 
-% x2_centered=data_trn(:,11)-x_bar;
-% x2estim=sum(x2_centered*U(indexes(1:l)),2)+x_bar;
-% figure,imagesc(abs(reshape(x2estim,[192,168]))),colormap('gray')
-% 
-% x4_centered=data_trn(:,31)-x_bar;
-% x4estim=sum(x4_centered*U(indexes(1:l)),2)+x_bar;
-% figure,imagesc(abs(reshape(x4estim,[192,168]))),colormap('gray')
+% tmp1=x1_centered'*U(:,1:l);
+% out=zeros(length(x1_centered),l);
+% for i = 1:l 
+%     out(:,i)=tmp1(i)*U(:,i);
+% end
+% x1estim=sum(out,2)+x_bar;
+% figure, 
+% subplot 121
+% imagesc(reshape(x1estim,[192,168])),colormap('gray')
+% subplot 122
+% imagesc(reshape(data_trn(:,1),[192,168])),colormap('gray')
 
+%%% Classification
 
+test=KNN(5,data_trn(:,13),data_trn,U,l);
+test=floor((test-1)/10)+1;
+
+% Trouver la valeur la plus fréquente
+valeurs_uniques = unique(test);  % Permet d'avoir une liste des valeurs apparaissant une fois
+occurrences = hist(test, valeurs_uniques); % Calcul le nombre de fois que l'elt apparait dans le vecteur
+[~, index] = max(occurrences);   %trouver l'index de l'elt qui apparait le + de fois
+valeur_la_plus_presente = valeurs_uniques(index);  % prendre la valeur
 
 
